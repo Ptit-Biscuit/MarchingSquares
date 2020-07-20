@@ -13,7 +13,22 @@ val seed = Random.nextInt(Int.MIN_VALUE, Int.MAX_VALUE)
 var res = 10
 var scale = .003
 
-fun segregate(points: List<List<Double>>, x: Int, y: Int): List<Pair<Vector2, Vector2>> {
+fun generatePoints(points: MutableList<MutableList<Double>>) =
+    (0 until W / res)
+        .map { x -> List(H / res) { x }.zip(0 until H / res) }
+        .flatten()
+        .forEach {
+            points[it.first][it.second] =
+                abs(valueQuintic(seed, it.first * res * res * scale, it.second * res * res * scale))
+        }
+
+fun generateMarchingSquares(points: MutableList<MutableList<Double>>, marchingSquares: MutableList<Vector2>) =
+    (0 until points.size - 1)
+        .map { x -> List(points[x].size - 1) { x }.zip((0 until points[x].size - 1)) }
+        .flatten()
+        .forEach { marchingSquares.addAll(segregate(points, it.first, it.second)) }
+
+fun segregate(points: List<List<Double>>, x: Int, y: Int): List<Vector2> {
     val one = Vector2((x + .5) * res, y * res * 1.0)
     val two = Vector2((x + 1.0) * res, (y + .5) * res)
     val three = Vector2((x + .5) * res, (y + 1.0) * res)
@@ -25,33 +40,24 @@ fun segregate(points: List<List<Double>>, x: Int, y: Int): List<Pair<Vector2, Ve
         points[x][y + 1],
         points[x + 1][y + 1]
     ).map { if (it < .5) 0 else 1 }.joinToString("").toInt(2)) {
-        1, 14 -> listOf(Pair(two, three))
-        2, 13 -> listOf(Pair(three, four))
-        3, 12 -> listOf(Pair(two, four))
-        4, 11 -> listOf(Pair(one, two))
-        5, 10 -> listOf(Pair(one, three))
-        6 -> listOf(Pair(one, four), Pair(two, three))
-        7, 8 -> listOf(Pair(one, four))
-        9 -> listOf(Pair(one, two), Pair(three, four))
+        1, 14 -> listOf(two, three)
+        2, 13 -> listOf(three, four)
+        3, 12 -> listOf(two, four)
+        4, 11 -> listOf(one, two)
+        5, 10 -> listOf(one, three)
+        6 -> listOf(one, four, two, three)
+        7, 8 -> listOf(one, four)
+        9 -> listOf(one, two, three, four)
         else -> listOf()
     }
 }
 
 fun main() = application {
     val points = MutableList(W / res + 1) { MutableList(H / res + 1) { .0 } }
-    val marchingSquares = mutableListOf<Pair<Vector2, Vector2>>()
+    val marchingSquares = mutableListOf<Vector2>()
 
-    (0 until W step res).forEach { x ->
-        (0 until H step res).forEach { y ->
-            points[x / res][y / res] = abs(valueQuintic(seed, x * res * scale, y * res * scale))
-        }
-    }
-
-    (0 until points.size - 1).forEachIndexed { ix, _ ->
-        (0 until points[ix].size - 1).forEachIndexed { iy, _ ->
-            marchingSquares.addAll(segregate(points, ix, iy))
-        }
-    }
+    generatePoints(points)
+    generateMarchingSquares(points, marchingSquares)
 
     configure {
         width = W
@@ -64,17 +70,16 @@ fun main() = application {
             drawer.strokeWeight = 2.0
 
             if (DEBUG) {
-                (0 until points.size).forEachIndexed { ix, _ ->
-                    (0 until points[ix].size).forEachIndexed { iy, _ ->
-                        drawer.fill = if (points[ix][iy] < .5) ColorRGBa.GRAY else ColorRGBa.WHITE
-                        drawer.circle(ix * res.toDouble(), iy * res.toDouble(), 4.0)
+                (0 until points.size)
+                    .map { x -> List(points[x].size) { x }.zip((0 until points[x].size)) }
+                    .flatten()
+                    .forEach {
+                        drawer.fill = if (points[it.first][it.second] < .5) ColorRGBa.GRAY else ColorRGBa.WHITE
+                        drawer.circle(it.first * res.toDouble(), it.second * res.toDouble(), 4.0)
                     }
-                }
             }
 
-            marchingSquares.forEach {
-                drawer.lineStrip(it.toList())
-            }
+            marchingSquares.zipWithNext().filterIndexed { i, _ -> i % 2 == 0 }.forEach { drawer.lineStrip(it.toList()) }
         }
     }
 }
