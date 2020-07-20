@@ -1,23 +1,30 @@
 import org.openrndr.application
 import org.openrndr.color.ColorRGBa
-import org.openrndr.extra.noise.random
-import org.openrndr.extra.noise.simplex
+import org.openrndr.extra.noise.valueQuintic
 import org.openrndr.math.Vector2
 import kotlin.math.abs
-import kotlin.math.min
+import kotlin.random.Random
 
-const val w = 900
-const val h = 600
+const val DEBUG = false
+const val W = 900
+const val H = 600
 
-data class Triplet(val x: Int, val y: Int, val value: Double)
+val seed = Random.nextInt(Int.MIN_VALUE, Int.MAX_VALUE)
+var res = 10
+var scale = .003
 
-fun toto(a: Triplet, b: Triplet, c: Triplet, d: Triplet): List<Pair<Vector2, Vector2>> {
-    val one = Vector2((a.x + b.x) / 2.0, (a.y + b.y) / 2.0)
-    val two = Vector2((b.x + d.x) / 2.0, (b.y + d.y) / 2.0)
-    val three = Vector2((c.x + d.x) / 2.0, (c.y + d.y) / 2.0)
-    val four = Vector2((a.x + c.x) / 2.0, (a.y + c.y) / 2.0)
+fun segregate(points: List<List<Double>>, x: Int, y: Int): List<Pair<Vector2, Vector2>> {
+    val one = Vector2((x + .5) * res, y * res * 1.0)
+    val two = Vector2((x + 1.0) * res, (y + .5) * res)
+    val three = Vector2((x + .5) * res, (y + 1.0) * res)
+    val four = Vector2(x * res * 1.0, (y + .5) * res)
 
-    return when (listOf(a.value, b.value, c.value, d.value).map { if (it < .5) 0 else 1 }.joinToString("").toInt(2)) {
+    return when (listOf(
+        points[x][y],
+        points[x + 1][y],
+        points[x][y + 1],
+        points[x + 1][y + 1]
+    ).map { if (it < .5) 0 else 1 }.joinToString("").toInt(2)) {
         1, 14 -> listOf(Pair(two, three))
         2, 13 -> listOf(Pair(three, four))
         3, 12 -> listOf(Pair(two, four))
@@ -31,47 +38,39 @@ fun toto(a: Triplet, b: Triplet, c: Triplet, d: Triplet): List<Pair<Vector2, Vec
 }
 
 fun main() = application {
-    val res = 10
-    val scale = .003
-    val points = mutableListOf<Triplet>()
+    val points = MutableList(W / res + 1) { MutableList(H / res + 1) { .0 } }
     val marchingSquares = mutableListOf<Pair<Vector2, Vector2>>()
-    val rnd = random().toInt()
 
-    (0..w step res).forEach { x ->
-        (0..h step res).forEach { y ->
-            points.add(Triplet(x, y, abs(simplex(rnd, x * res * scale, y * res * scale))))
+    (0 until W step res).forEach { x ->
+        (0 until H step res).forEach { y ->
+            points[x / res][y / res] = abs(valueQuintic(seed, x * res * scale, y * res * scale))
         }
     }
 
-    val chunkedPoints = points.chunked(min(w / res, h / res) + 1)
-
-    (0 until chunkedPoints.size - 1).forEach { x ->
-        (0 until chunkedPoints[x].size - 1).forEach { y ->
-            marchingSquares.addAll(
-                toto(
-                    chunkedPoints[x][y],
-                    chunkedPoints[x + 1][y],
-                    chunkedPoints[x][y + 1],
-                    chunkedPoints[x + 1][y + 1]
-                )
-            )
+    (0 until points.size - 1).forEachIndexed { ix, _ ->
+        (0 until points[ix].size - 1).forEachIndexed { iy, _ ->
+            marchingSquares.addAll(segregate(points, ix, iy))
         }
     }
 
     configure {
-        width = w
-        height = h
+        width = W
+        height = H
     }
 
     program {
         extend {
             drawer.stroke = ColorRGBa.WHITE
-            drawer.strokeWeight = 1.0
+            drawer.strokeWeight = 2.0
 
-            /*points.forEach { p ->
-                drawer.fill = if (p.value < .5) ColorRGBa.GRAY else ColorRGBa.WHITE
-                drawer.circle(p.x.toDouble(), p.y.toDouble(), 5.0)
-            }*/
+            if (DEBUG) {
+                (0 until points.size).forEachIndexed { ix, _ ->
+                    (0 until points[ix].size).forEachIndexed { iy, _ ->
+                        drawer.fill = if (points[ix][iy] < .5) ColorRGBa.GRAY else ColorRGBa.WHITE
+                        drawer.circle(ix * res.toDouble(), iy * res.toDouble(), 4.0)
+                    }
+                }
+            }
 
             marchingSquares.forEach {
                 drawer.lineStrip(it.toList())
