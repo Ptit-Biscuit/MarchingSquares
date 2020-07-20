@@ -9,17 +9,20 @@ const val DEBUG = false
 const val W = 900
 const val H = 600
 
-val seed = Random.nextInt(Int.MIN_VALUE, Int.MAX_VALUE)
+var seed = Random.nextInt(Int.MIN_VALUE, Int.MAX_VALUE)
 var res = 10
 var scale = .003
 
-fun generatePoints(points: MutableList<MutableList<Double>>) =
+fun generatePoints(
+    points: MutableList<MutableList<Double>>,
+    seconds: Double
+) =
     (0 until W / res)
         .map { x -> List(H / res) { x }.zip(0 until H / res) }
         .flatten()
         .forEach {
             points[it.first][it.second] =
-                abs(valueQuintic(seed, it.first * res * res * scale, it.second * res * res * scale))
+                abs(valueQuintic(seed, it.first * res * res * scale, it.second * res * res * scale, seconds))
         }
 
 fun generateMarchingSquares(points: MutableList<MutableList<Double>>, marchingSquares: MutableList<Vector2>) =
@@ -53,21 +56,60 @@ fun segregate(points: List<List<Double>>, x: Int, y: Int): List<Vector2> {
 }
 
 fun main() = application {
-    val points = MutableList(W / res + 1) { MutableList(H / res + 1) { .0 } }
-    val marchingSquares = mutableListOf<Vector2>()
-
-    generatePoints(points)
-    generateMarchingSquares(points, marchingSquares)
-
     configure {
         width = W
         height = H
     }
 
     program {
+        keyboard.keyDown.listen {
+            if (it.name == "r") {
+                seed = Random.nextInt(Int.MIN_VALUE, Int.MAX_VALUE)
+                res = 10
+                scale = .003
+            }
+
+            if (it.name == "j" && res > 1) {
+                res -= 1
+            }
+
+            if (it.name == "l") {
+                res += 1
+            }
+
+            if (it.name == "-" && scale > .001) {
+                scale -= .001
+            }
+
+            if (it.name == "+") {
+                scale += .001
+            }
+        }
+
+        keyboard.keyRepeat.listen {
+            if (it.name == "j" && res > 1) {
+                res -= 1
+            }
+
+            if (it.name == "l") {
+                res += 1
+            }
+
+            if (it.name == "-" && scale > .001) {
+                scale -= .001
+            }
+
+            if (it.name == "+") {
+                scale += .001
+            }
+        }
+
         extend {
             drawer.stroke = ColorRGBa.WHITE
             drawer.strokeWeight = 2.0
+
+            val points = MutableList(W / res + 1) { MutableList(H / res + 1) { .0 } }
+            val marchingSquares = mutableListOf<Vector2>()
 
             if (DEBUG) {
                 (0 until points.size)
@@ -78,6 +120,9 @@ fun main() = application {
                         drawer.circle(it.first * res.toDouble(), it.second * res.toDouble(), 4.0)
                     }
             }
+
+            generatePoints(points, seconds)
+            generateMarchingSquares(points, marchingSquares)
 
             marchingSquares.zipWithNext().filterIndexed { i, _ -> i % 2 == 0 }.forEach { drawer.lineStrip(it.toList()) }
         }
