@@ -1,4 +1,5 @@
 import org.openrndr.application
+import org.openrndr.color.ColorHSVa
 import org.openrndr.color.ColorRGBa
 import org.openrndr.extra.noise.valueQuintic
 import org.openrndr.math.Vector2
@@ -18,18 +19,22 @@ fun generatePoints(
     seconds: Double
 ) =
     (0 until W / res)
-        .map { x -> List(H / res) { x }.zip(0 until H / res) }
-        .flatten()
-        .forEach {
-            points[it.first][it.second] =
-                abs(valueQuintic(seed, it.first * res * res * scale, it.second * res * res * scale, seconds))
+        .forEach { x ->
+            (0 until H / res)
+                .forEach { y ->
+                    points[x][y] =
+                        abs(valueQuintic(seed, x * res * res * scale, y * res * res * scale, seconds))
+                }
         }
 
 fun generateMarchingSquares(points: MutableList<MutableList<Double>>, marchingSquares: MutableList<Vector2>) =
     (0 until points.size - 1)
-        .map { x -> List(points[x].size - 1) { x }.zip((0 until points[x].size - 1)) }
-        .flatten()
-        .forEach { marchingSquares.addAll(segregate(points, it.first, it.second)) }
+        .forEach { x ->
+            (0 until points[x].size - 1)
+                .forEach { y ->
+                    marchingSquares.addAll(segregate(points, x, y))
+                }
+        }
 
 fun segregate(points: List<List<Double>>, x: Int, y: Int): List<Vector2> {
     val one = Vector2((x + .5) * res, y * res * 1.0)
@@ -110,21 +115,29 @@ fun main() = application {
 
             val points = MutableList(W / res + 1) { MutableList(H / res + 1) { .0 } }
             val marchingSquares = mutableListOf<Vector2>()
+            val colors = mutableListOf<ColorRGBa>()
 
             if (DEBUG) {
                 (0 until points.size)
-                    .map { x -> List(points[x].size) { x }.zip((0 until points[x].size)) }
-                    .flatten()
-                    .forEach {
-                        drawer.fill = if (points[it.first][it.second] < .5) ColorRGBa.GRAY else ColorRGBa.WHITE
-                        drawer.circle(it.first * res.toDouble(), it.second * res.toDouble(), 4.0)
+                    .forEach { x ->
+                        (0 until points[x].size)
+                            .forEach { y ->
+                                drawer.fill = if (points[x][y] < .5) ColorRGBa.GRAY else ColorRGBa.WHITE
+                                drawer.circle(x * res.toDouble(), y * res.toDouble(), 4.0)
+                            }
                     }
             }
 
             generatePoints(points, seconds)
             generateMarchingSquares(points, marchingSquares)
+            colors.addAll(marchingSquares.zipWithNext().map {
+                ColorHSVa(255 * valueQuintic(seed, it.first), .5, 1.0).toRGBa()
+            })
 
-            marchingSquares.zipWithNext().filterIndexed { i, _ -> i % 2 == 0 }.forEach { drawer.lineStrip(it.toList()) }
+            marchingSquares.zipWithNext().filterIndexed { i, _ -> i % 2 == 0 }.zip(colors).forEach {
+                drawer.stroke = it.second
+                drawer.lineStrip(it.first.toList())
+            }
         }
     }
 }
