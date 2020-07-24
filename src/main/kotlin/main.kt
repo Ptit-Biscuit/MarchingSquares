@@ -12,20 +12,13 @@ const val H = 600
 
 var seed = Random.nextInt(Int.MIN_VALUE, Int.MAX_VALUE)
 var res = 10
-var scale = .003
 
-fun generatePoints(
-    points: MutableList<MutableList<Double>>,
-    seconds: Double
-) =
-    (0 until W / res)
-        .forEach { x ->
-            (0 until H / res)
-                .forEach { y ->
-                    points[x][y] =
-                        abs(valueQuintic(seed, x * res * res * scale, y * res * res * scale, seconds))
-                }
+fun generatePoints(points: MutableList<MutableList<Double>>, seconds: Double) =
+    (0 until W / res).forEach { x ->
+        (0 until H / res).forEach { y ->
+            points[x][y] = abs(valueQuintic(seed, x.toDouble(), y.toDouble(), seconds))
         }
+    }
 
 fun generateMarchingSquares(points: MutableList<MutableList<Double>>, marchingSquares: MutableList<Vector2>) =
     (0 until points.size - 1)
@@ -71,7 +64,6 @@ fun main() = application {
             if (it.name == "r") {
                 seed = Random.nextInt(Int.MIN_VALUE, Int.MAX_VALUE)
                 res = 10
-                scale = .003
             }
 
             if (it.name == "j" && res > 1) {
@@ -80,14 +72,6 @@ fun main() = application {
 
             if (it.name == "l") {
                 res += 1
-            }
-
-            if (it.name == "-" && scale > .001) {
-                scale -= .001
-            }
-
-            if (it.name == "+") {
-                scale += .001
             }
         }
 
@@ -98,14 +82,6 @@ fun main() = application {
 
             if (it.name == "l") {
                 res += 1
-            }
-
-            if (it.name == "-" && scale > .001) {
-                scale -= .001
-            }
-
-            if (it.name == "+") {
-                scale += .001
             }
         }
 

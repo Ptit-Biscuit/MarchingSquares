@@ -1,89 +1,57 @@
 import org.openrndr.application
+import org.openrndr.color.ColorHSVa
 import org.openrndr.color.ColorRGBa
 import org.openrndr.extra.noise.valueQuintic
 import org.openrndr.math.Vector2
 import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.sin
 import kotlin.random.Random
 
 const val hex_W = 900
 const val hex_H = 600
 
 var hex_seed = Random.nextInt(Int.MIN_VALUE, Int.MAX_VALUE)
-var hex_res = 50
-var hex_scale = .003
+var hex_res = 10
+var hex_scale = .01
 
-val hexHeight = sin(Math.toRadians(30.0)) * hex_res;
-val hexRadius = cos(Math.toRadians(30.0)) * hex_res;
-val hexRectangleHeight = 2 * hexHeight + hex_res;
-val hexRectangleWidth = 2 * hexRadius;
-
-var stepX = 1
-var stepY = 1
-
-fun generatePoints(points: MutableList<Triple<Double, Double, Double>>) =
-    (0..hex_W step hexRectangleWidth.toInt())
+fun generatePoints(points: MutableList<MutableList<Double?>>, seconds: Double) =
+    (0 until hex_W / hex_res step 2)
         .forEach { x ->
-            (0..hex_H step hexRectangleHeight.toInt())
+            (0 until hex_H / hex_res step 4)
                 .forEach { y ->
-                    hexPoints(x.toDouble(), y.toDouble())
-                        .forEach {
-                            points.add(
-                                Triple(
-                                    it.x,
-                                    it.y,
-                                    abs(
-                                        valueQuintic(
-                                            hex_seed,
-                                            (x + stepX++) * hex_res * hex_scale,
-                                            (y + stepY++) * hex_res * hex_scale
-                                        )
-                                    )
-                                )
-                            )
-
-                            stepX += 2
-                            stepY += 2
-                        }
+                    points[x][y] =
+                        abs(valueQuintic(hex_seed, x * hex_res * hex_scale, y * hex_res * hex_scale, seconds))
+                    points[x + 1][y + 1] =
+                        abs(valueQuintic(hex_seed, x * hex_res * hex_scale, y * hex_res * hex_scale, seconds))
+                    points[x + 1][y + 2] =
+                        abs(valueQuintic(hex_seed, x * hex_res * hex_scale, y * hex_res * hex_scale, seconds))
+                    points[x][y + 3] =
+                        abs(valueQuintic(hex_seed, x * hex_res * hex_scale, y * hex_res * hex_scale, seconds))
                 }
         }
 
-fun hexPoints(x: Double, y: Double) = listOf(
-    Vector2(x + hexRadius, y), // A
-    Vector2(x + hexRectangleWidth, y + hexHeight), // B
-    Vector2(x, y + hexHeight), // C
-    Vector2(x + hexRectangleWidth, y + hexHeight + hex_res), // D
-    Vector2(x, y + hexHeight + hex_res), // E
-    Vector2(x + hexRadius, y + hexRectangleHeight) // F
-)
+fun generateMarchingHex(points: MutableList<MutableList<Double?>>, marchingHex: MutableList<Vector2>) =
+    (1 until hex_W / hex_res - 1)
+        .forEach { x ->
+            val startY = if (x % 2 == 0) 0 else 2
+            (startY until (hex_H / hex_res - 2) step 4).forEach { y -> marchingHex.addAll(segregateHex(points, x, y)) }
+        }
 
-fun generateMarchingHex(points: MutableList<Triple<Double, Double, Double>>, marchingHex: MutableList<Vector2>) =
-    (0 until points.size - 1 step 6).forEach {
-        marchingHex.addAll(segregateHex(points, points[it]))
-    }
-
-fun segregateHex(
-    points: MutableList<Triple<Double, Double, Double>>,
-    p: Triple<Double, Double, Double>
-): List<Vector2> {
-    val one = Vector2(p.first + hexRadius * .5, p.second + hexHeight * .5) // AB/2
-    val two = Vector2(p.first + hexRectangleWidth, p.second + hexHeight + hex_res * .5) // BD/2
-    val three = Vector2(p.first + hexRadius * .5, p.second + hexRectangleHeight * .75) // DF/2
-    val four = Vector2(p.first + hexRadius * .5, p.second + hexRectangleHeight * .75) // FE/2
-    val five = Vector2(p.first, p.second + hexHeight + hex_res * .5) // EC/2
-    val six = Vector2(p.first + hexRadius * .5, p.second + hexHeight * .5) // CA/2
+fun segregateHex(points: MutableList<MutableList<Double?>>, x: Int, y: Int): List<Vector2> {
+    val one = Vector2((x + .5) * hex_res, (y + .5) * hex_res) // AB/2
+    val two = Vector2((x + 1.0) * hex_res, (y + 1.5) * hex_res) // BD/2
+    val three = Vector2((x + .5) * hex_res, (y + 2.5) * hex_res) // DF/2
+    val four = Vector2((x - .5) * hex_res, (y + 2.5) * hex_res) // FE/2
+    val five = Vector2((x - 1.0) * hex_res, (y + 1.5) * hex_res) // EC/2
+    val six = Vector2((x - .5) * hex_res, (y + .5) * hex_res) // CA/2
 
     val binary = listOf(
-        p,
-        points[points.indexOf(p) + 1],
-        points[points.indexOf(p) + 2],
-        points[points.indexOf(p) + 3],
-        points[points.indexOf(p) + 4],
-        points[points.indexOf(p) + 5]
-    ).map { if (it.third < .5) 0 else 1 }.joinToString("").toInt(2)
-
-    println(binary)
+        points[x][y], // A
+        points[x + 1][y + 1], // B
+        points[x - 1][y + 1], // C
+        points[x + 1][y + 2], // D
+        points[x - 1][y + 2], // E
+        points[x][y + 3] // F
+    ).map { if (it!! < .5) 0 else 1 }.joinToString("").toInt(2)
 
     return when (binary) {
         1, 62 -> listOf(three, four)
@@ -101,22 +69,23 @@ fun segregateHex(
         13, 50 -> listOf(four, five, two, six)
         14, 49 -> listOf(three, four, two, six)
         15, 48 -> listOf(two, six)
-        16, 47 -> listOf()
-        17, 46 -> listOf()
-        18, 45 -> listOf()
-        19, 44 -> listOf()
-        20, 43 -> listOf()
-        21, 42 -> listOf()
-        22, 41 -> listOf()
-        23, 40 -> listOf()
-        24, 39 -> listOf()
-        25, 38 -> listOf()
-        26, 37 -> listOf()
-        27, 36 -> listOf()
-        28, 35 -> listOf()
-        29, 34 -> listOf()
-        30, 33 -> listOf()
+        16, 47 -> listOf(one, two)
+        17, 46 -> listOf(one, four, two, three)
+        18, 45 -> listOf(one, five, two, four)
+        19, 44 -> listOf(one, five, two, three)
+        20, 43 -> listOf(one, three)
+        21, 42 -> listOf(one, four)
+        22, 41 -> listOf(one, five, three, four)
+        23, 40 -> listOf(one, five)
+        24, 39 -> listOf(one, six, two, five)
+        25 -> listOf(one, two, three, four, five, six)
+        26, 37 -> listOf(one, six, two, four)
+        27, 36 -> listOf(one, six, two, three)
+        28, 35 -> listOf(one, six, three, five)
+        29, 34 -> listOf(one, six, four, five)
+        30, 33 -> listOf(one, six, three, four)
         31, 32 -> listOf(one, six)
+        38 -> listOf(one, six, two, three, four, five)
         else -> listOf()
     }
 }
@@ -128,25 +97,36 @@ fun main() = application {
     }
 
     program {
-        val points = mutableListOf<Triple<Double, Double, Double>>()
-        val marchingHex = mutableListOf<Vector2>()
-
-        generatePoints(points)
-        generateMarchingHex(points, marchingHex)
-
         extend {
             drawer.stroke = ColorRGBa.WHITE
             drawer.strokeWeight = 2.0
 
-            points.forEach { t ->
-                drawer.stroke = if (t.third < .5) ColorRGBa.BLUE else ColorRGBa.YELLOW
-                drawer.circle(t.first, t.second, 4.0)
+            val points = MutableList(hex_W / hex_res) { MutableList<Double?>(hex_H / hex_res) { null } }
+            val marchingHex = mutableListOf<Vector2>()
+            val colors = mutableListOf<ColorRGBa>()
+
+            generatePoints(points, seconds)
+            generateMarchingHex(points, marchingHex)
+            colors.addAll(marchingHex.zipWithNext().map {
+                ColorHSVa(255 * valueQuintic(seed, it.first), .5, 1.0).toRGBa()
+            })
+
+            if (DEBUG) {
+                (0 until points.size)
+                    .forEach { x ->
+                        (0 until points[x].size)
+                            .forEach { y ->
+                                if (points[x][y] != null) {
+                                    drawer.stroke = if (points[x][y]!! < .5) ColorRGBa.BLUE else ColorRGBa.YELLOW
+                                    drawer.circle(x * hex_res.toDouble(), y * hex_res.toDouble(), 4.0)
+                                }
+                            }
+                    }
             }
 
-            drawer.stroke = ColorRGBa.WHITE
-
-            marchingHex.zipWithNext().filterIndexed { i, _ -> i % 2 == 0 }.forEach {
-                drawer.lineStrip(it.toList())
+            marchingHex.zipWithNext().filterIndexed { i, _ -> i % 2 == 0 }.zip(colors).forEach {
+                drawer.stroke = it.second
+                drawer.lineStrip(it.first.toList())
             }
         }
     }
